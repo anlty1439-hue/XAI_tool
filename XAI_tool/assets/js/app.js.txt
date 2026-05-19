@@ -1,0 +1,407 @@
+/* Simple SPA router + data + UI logic */
+
+const routes = ["home","about","patients","patient","viz-options","graph"];
+const appEl = document.getElementById("app");
+const toast = document.getElementById("toast");
+const yearEl = document.getElementById("year");
+yearEl.textContent = new Date().getFullYear();
+
+/* Data modeled from the PPT */
+const patients = [
+  { id: 1001, level: "Underweight", available: false, consent: false },
+  { id: 1002, level: "Obese",       available: true,  consent: true  },
+  { id: 1003, level: "Overweight",  available: false, consent: false },
+  { id: 1004, level: "Normal",      available: false, consent: false },
+  { id: 1005, level: "Normal",      available: false, consent: false },
+  { id: 1006, level: "Overweight",  available: false, consent: false },
+  { id: 1007, level: "Obese",       available: true,  consent: true  },
+  { id: 1008, level: "Underweight", available: false, consent: false },
+
+  // Extended list from later slide
+  { id: 1009, level: "Underweight", available: true,  consent: false },
+  { id: 1010, level: "Obese",       available: false, consent: false },
+  { id: 1011, level: "Normal",      available: true,  consent: false },
+];
+
+/* Example feature sets representing the four exemplar cases */
+const featureSets = {
+  Obese: [
+    ["gender","male"],["age","28"],["height cm","165 cm"],["weight kg","100 kg"],
+    ["family history of obesity","yes"],["eating high caloric diet","yes"],
+    ["eating vegetables with meals","with 1 meal"],["number of main meals","4"],
+    ["frequency of daily snacks","always"],["smoking","yes"],
+    ["drinking water in Liters","1 Liter"],["are you monitoring calories","no"],
+    ["days of physical activities weekly","0 days"],["Hours of using technology daily","2 hours"],
+    ["frequency of drinking alcohol","frequently"],["type of transportation","public transportation"]
+  ],
+  Overweight: [
+    ["gender","male"],["age","20"],["height cm","158 cm"],["weight kg","74 kg"],
+    ["family history of obesity","no"],["eating high caloric diet","yes"],
+    ["eating vegetables with meals","with 1 meal"],["number of main meals","3"],
+    ["frequency of daily snacks","always"],["smoking","yes"],
+    ["drinking water in Liters","1 Liter"],["are you monitoring calories","no"],
+    ["days of physical activities weekly","0 days"],["Hours of using technology daily","1 hours"],
+    ["frequency of drinking alcohol","always"],["type of transportation","public transportation"]
+  ],
+  Underweight: [
+    ["gender","female"],["age","19"],["height cm","160 cm"],["weight kg","45 kg"],
+    ["family history of obesity","no"],["eating high caloric diet","no"],
+    ["eating vegetables with meals","with 2 meal"],["number of main meals","2"],
+    ["frequency of daily snacks","nothing"],["smoking","no"],
+    ["drinking water in Liters","3 Liter"],["are you monitoring calories","no"],
+    ["days of physical activities weekly","2 days"],["Hours of using technology daily","2 hours"],
+    ["frequency of drinking alcohol","sometimes"],["type of transportation","public transportation"]
+  ],
+  Normal: [
+    ["gender","female"],["age","21"],["height cm","175 cm"],["weight kg","62 kg"],
+    ["family history of obesity","no"],["eating high caloric diet","no"],
+    ["eating vegetables with meals","with 3 meals"],["number of main meals","3"],
+    ["frequency of daily snacks","0"],["smoking","no"],
+    ["drinking water in Liters","2 Liters"],["are you monitoring calories","yes"],
+    ["days of physical activities weekly","3 days"],["Hours of using technology daily","0 hours"],
+    ["frequency of drinking alcohol","sometimes"],["type of transportation","walking"]
+  ]
+};
+
+/* Visualisation sets */
+const vizByMethod = {
+  shap: [
+    { key:"waterfall", title:"SHAP Waterfall Plot", img:"assets/img/placeholder-waterfall.png" },
+    { key:"force",     title:"SHAP Force Plot",     img:"assets/img/placeholder-force.png" },
+    { key:"decision",  title:"SHAP Decision Plot",  img:"assets/img/placeholder-decision.png" }
+  ],
+  lime: [
+    { key:"expl", title:"LIME Explanation Plot", img:"assets/img/placeholder-lime-expl.png" },
+    { key:"bar",  title:"LIME Bar Chart",        img:"assets/img/placeholder-lime-bar.png" }
+  ]
+};
+
+/* Graph descriptions (from your slides, condensed and consistent) */
+const graphDescriptions = {
+  "shap:waterfall": `
+  What it shows:
+  - How features push the prediction from a baseline toward the final result.
+  - Red (negative/unhealthy) vs Green (positive/healthy) contributions.
+
+  How to read:
+  - Y-axis: most influential features from top to bottom.
+  - X-axis: contribution magnitude; baseline often shown around 0.5.
+  - Left of baseline → increases likelihood of “Not Normal”.
+  - Right of baseline → increases likelihood of “Normal”.
+
+  Why it helps:
+  - Highlights which personal parameters mattered most and by how much.
+  `,
+  "shap:force": `
+  What it shows:
+  - A horizontal decomposition: features push prediction left (Not Normal) or right (Normal).
+
+  How to read:
+  - Base value ~0.5. Red pulls left (unhealthy), Green pulls right (healthy).
+  - Bar segment size indicates strength of each feature’s effect.
+
+  Why it helps:
+  - Clear view of direction and strength for each factor.
+  `,
+  "shap:decision": `
+  What it shows:
+  - A path from baseline to final prediction as features are added.
+
+  How to read:
+  - Line segments shift left (Not Normal) or right (Normal) with each feature.
+  - Color indicates direction (red = unhealthy, green = healthy).
+
+  Why it helps:
+  - Shows order of influence and cumulative effect.
+  `,
+  "lime:expl": `
+  Structure:
+  - Left: probability bars (Normal vs Not Normal).
+  - Middle: feature impact bars (length = strength).
+  - Right: table of actual feature values (blue = healthy, orange = unhealthy).
+
+  How to read:
+  - Bars to left (blue) support “Normal”; right (orange) support “Not Normal”.
+
+  Why it helps:
+  - Full per-person explanation: what, why, and how strong each factor is.
+  `,
+  "lime:bar": `
+  What it shows:
+  - Ranked features with contributions (starting at 0.0).
+
+  How to read:
+  - Blue bars to the left = healthy; orange bars to the right = unhealthy.
+  - Length indicates magnitude computed by LIME for this instance.
+
+  Why it helps:
+  - Quick identification of the most influential parameters.
+  `
+};
+
+/* App state */
+const state = {
+  route: "home",
+  currentPatientId: null,
+  currentMethod: null, // "shap" | "lime"
+  currentGraph: null   // { key, title, img }
+};
+
+/* Utilities */
+function showRoute(name){
+  state.route = name;
+  document.querySelectorAll(".route").forEach(s=>{
+    s.classList.toggle("active", s.dataset.name===name);
+  });
+  if(name==="patients") renderPatients();
+  if(name==="patient") renderPatient();
+  if(name==="viz-options") renderVizOptions();
+  if(name==="graph") renderGraph();
+  window.location.hash = "#/"+name;
+}
+
+function toastMsg(text, ms=2800){
+  toast.textContent = text;
+  toast.classList.add("show");
+  setTimeout(()=> toast.classList.remove("show"), ms);
+}
+
+/* Initialize routes from hash */
+function initFromHash(){
+  const h = window.location.hash.replace("#/","");
+  if(routes.includes(h)) showRoute(h);
+  else showRoute("home");
+}
+
+/* Renderers */
+function renderPatients(){
+  const body = document.getElementById("patients-body");
+  body.innerHTML = "";
+  patients.forEach(p=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.id}</td>
+      <td>${p.level}</td>
+      <td>
+        ${p.available
+          ? `<span class="${p.consent ? 'label-danger' : 'label-ok'}">
+               Available
+             </span>`
+          : `<span class="label-na">Not available</span>`
+        }
+      </td>
+      <td>
+        <button class="btn"
+          ${!p.available ? 'disabled' : ''}
+          data-open-patient="${p.id}">
+          ${p.available ? 'Open' : '—'}
+        </button>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function levelToExample(level){
+  // Map to the closest example group for feature display
+  if(level==="Obese") return "Obese";
+  if(level==="Overweight") return "Overweight";
+  if(level==="Underweight") return "Underweight";
+  return "Normal";
+}
+
+function renderPatient(){
+  const p = patients.find(x=> x.id===state.currentPatientId);
+  const subtitle = document.getElementById("patient-subtitle");
+  subtitle.textContent = p ? `ID ${p.id} • Weight level: ${p.level}` : "";
+
+  const tbody = document.getElementById("patient-features");
+  tbody.innerHTML = "";
+  if(!p) return;
+
+  const exampleKey = levelToExample(p.level);
+  const rows = featureSets[exampleKey] || [];
+  rows.forEach(([k,v])=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${k}</td><td>${v}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderVizOptions(){
+  const grid = document.getElementById("viz-grid");
+  const title = document.getElementById("viz-method-title");
+  const list = vizByMethod[state.currentMethod] || [];
+  title.textContent = state.currentMethod==="shap"
+    ? "SHAP visualisation options"
+    : "LIME visualisation options";
+  grid.innerHTML = "";
+  list.forEach(item=>{
+    const card = document.createElement("div");
+    card.className = "viz-card";
+    card.innerHTML = `
+      <div class="viz-thumb">
+        <img src="${item.img}" alt="${item.title}" style="max-height:120px; width:auto" />
+      </div>
+      <div class="viz-title">${item.title}</div>
+      <button class="btn btn-primary" data-open-graph="${item.key}">Open</button>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderGraph(){
+  const title = document.getElementById("graph-title");
+  const img = document.getElementById("graph-image");
+  if(!state.currentGraph) return;
+  title.textContent = state.currentGraph.title;
+  img.src = state.currentGraph.img;
+  img.alt = state.currentGraph.title;
+}
+
+/* Modals / drawers */
+const consentModal = document.getElementById("consent-modal");
+const consentYes = document.getElementById("consent-yes");
+let pendingOpenPatientId = null;
+
+function openConsent(id){
+  pendingOpenPatientId = id;
+  consentModal.classList.add("show");
+  consentModal.setAttribute("aria-hidden","false");
+}
+function closeConsent(){
+  consentModal.classList.remove("show");
+  consentModal.setAttribute("aria-hidden","true");
+  pendingOpenPatientId = null;
+}
+document.querySelector('[data-close="consent"]')?.addEventListener("click", closeConsent);
+consentYes.addEventListener("click", ()=>{
+  const id = pendingOpenPatientId;
+  closeConsent();
+  if(id!=null){
+    state.currentPatientId = id;
+    showRoute("patient");
+  }
+});
+
+/* Features modal */
+const featuresModal = document.getElementById("features-modal");
+function openFeatures(){
+  const p = patients.find(x=> x.id===state.currentPatientId);
+  const list = document.getElementById("features-list");
+  list.innerHTML = "";
+  if(!p) return;
+  const exampleKey = levelToExample(p.level);
+  (featureSets[exampleKey]||[]).forEach(([k,v])=>{
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div>`;
+    list.appendChild(row);
+  });
+  featuresModal.classList.add("show");
+  featuresModal.setAttribute("aria-hidden","false");
+}
+function closeFeatures(){
+  featuresModal.classList.remove("show");
+  featuresModal.setAttribute("aria-hidden","true");
+}
+document.querySelector('[data-close="features"]')?.addEventListener("click", closeFeatures);
+
+/* Describe drawer */
+const drawer = document.getElementById("describe-drawer");
+const drawerBody = document.getElementById("describe-body");
+document.getElementById("close-drawer").addEventListener("click", ()=> {
+  drawer.classList.remove("open");
+  drawer.setAttribute("aria-hidden","true");
+});
+function openDescribe(){
+  const key = state.currentMethod+":"+state.currentGraph.key;
+  drawerBody.textContent = (graphDescriptions[key]||"").trim();
+  drawer.classList.add("open");
+  drawer.setAttribute("aria-hidden","false");
+}
+
+/* Click handlers and navigation */
+document.body.addEventListener("click",(e)=>{
+  const btn = e.target.closest("button");
+  if(!btn) return;
+
+  // Top/inline route buttons
+  if(btn.dataset.route){
+    const route = btn.dataset.route;
+    if(route==="viz-options" && btn.dataset.method){
+      state.currentMethod = btn.dataset.method; // shap | lime
+    }
+    showRoute(route);
+
+    // Instructional toasts
+    if(btn.dataset.instruction==="patientsIntro"){
+      toastMsg('Instruction: "Not available" means no details yet. Red "Available" requires consent.');
+    }
+    if(btn.dataset.instruction==="vizIcons"){
+      toastMsg("Instruction: The graph icons on the next screen are clickable.");
+    }
+    return;
+  }
+
+  // Open patient buttons
+  if(btn.dataset.openPatient){
+    const id = Number(btn.dataset.openPatient);
+    const p = patients.find(x=> x.id===id);
+    if(!p) return;
+    if(!p.available){
+      toastMsg("This patient data is not available.");
+      return;
+    }
+    if(p.consent){
+      openConsent(id);
+    } else {
+      state.currentPatientId = id;
+      showRoute("patient");
+    }
+    return;
+  }
+
+  // Open graph from options
+  if(btn.dataset.openGraph){
+    const key = btn.dataset.openGraph;
+    const chosen = (vizByMethod[state.currentMethod]||[]).find(v=> v.key===key);
+    state.currentGraph = chosen || null;
+    showRoute("graph");
+    return;
+  }
+
+  // Graph page actions
+  if(btn.id==="btn-feature-details"){
+    openFeatures();
+    return;
+  }
+  if(btn.id==="btn-describe-graph"){
+    openDescribe();
+    return;
+  }
+  if(btn.id==="btn-print"){
+    // Mirror "Sorry printing is not available" note from prototype for some pages,
+    // but we’ll let the browser print the current graph area for practicality.
+    window.print();
+    return;
+  }
+  if(btn.id==="btn-other-graphs"){
+    showRoute("viz-options");
+    return;
+  }
+});
+
+/* Header nav links */
+document.querySelectorAll('.top-nav .link').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    const r = b.dataset.route;
+    if(r==="patients") renderPatients();
+    showRoute(r);
+  });
+});
+
+/* Initial population + hash routing */
+window.addEventListener("hashchange", initFromHash);
+initFromHash();
+renderPatients();

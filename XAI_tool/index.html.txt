@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>XAI Weight Levels Tool</title>
+  <link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">WL</div>
+      <div class="brand-text">
+        <span class="brand-title">Weight Levels Tool</span>
+        <span class="brand-subtitle">Explainable AI for weight status</span>
+      </div>
+    </div>
+    <nav class="top-nav">
+      <button class="link" data-route="home">Home</button>
+      <button class="link" data-route="patients">Patients</button>
+      <button class="link" data-route="about">Tell me about it</button>
+    </nav>
+  </header>
+
+  <main id="app">
+    <!-- Home -->
+    <section class="route" data-name="home">
+      <div class="hero">
+        <div class="hero-illustration" aria-hidden="true">🍎</div>
+        <h1 class="h1">Weight Levels Tool</h1>
+        <p class="lead">
+          Explore patient data and understand model predictions using SHAP and LIME.
+        </p>
+        <div class="actions">
+          <button class="btn btn-secondary" data-route="about">Tell me about it</button>
+          <button class="btn btn-primary" data-route="patients" data-instruction="patientsIntro">Start</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- About (Tell me about it) -->
+    <section class="route" data-name="about">
+      <div class="panel">
+        <h2>About the Tool</h2>
+        <p>
+          This tool helps individuals understand factors influencing weight levels by combining
+          a Random Forest Classifier with Explainable AI (XAI) methods: SHAP and LIME.
+        </p>
+
+        <h3>1. Data Source</h3>
+        <p>
+          “Estimation of Obesity Levels Based on Eating Habits and Physical Condition”
+          (Palechor & Manotas, 2019). It includes 16 lifestyle parameters such as eating habits,
+          physical activity, and personal factors.
+        </p>
+
+        <h3>2. AI Model Development</h3>
+        <p>
+          The model (Random Forest Classifier) predicts weight category:
+          Underweight, Normal, Overweight, Obese.
+        </p>
+
+        <h3>3. Explainable AI (XAI)</h3>
+        <ul>
+          <li>SHAP: waterfall, force, decision plots for feature contributions.</li>
+          <li>LIME: explanation plot and bar chart for local interpretability.</li>
+        </ul>
+
+        <h3>4–6. User-Centred Design, Expert Feedback, Purpose</h3>
+        <ul>
+          <li>Designed with input from nutrition professionals.</li>
+          <li>Focus on simplicity, interpretability, and clear navigation.</li>
+          <li>Educational and self-awareness support; complements professional advice.</li>
+        </ul>
+
+        <div class="actions">
+          <button class="btn" data-route="home">Go to home page</button>
+          <button class="btn btn-primary" data-route="patients">Start</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Patients list -->
+    <section class="route" data-name="patients">
+      <div class="panel">
+        <h2>Patients List</h2>
+        <p class="muted">
+          Some patients have not provided details yet (Not available).
+          “Available” shown in red means consent is required every access.
+        </p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Weight Level</th>
+                <th>Availability</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody id="patients-body">
+              <!-- Filled by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions">
+          <button class="btn" data-route="home">Go to home page</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Consent modal -->
+    <div class="modal" id="consent-modal" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="modal-content">
+        <h3>Consent required</h3>
+        <p>
+          This option requires consent from the patient every time you open it.
+          Have you got their permission?
+        </p>
+        <div class="actions">
+          <button class="btn btn-secondary" data-close="consent">No, go to patient list</button>
+          <button class="btn btn-primary" id="consent-yes">Yes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Patient data -->
+    <section class="route" data-name="patient">
+      <div class="panel">
+        <h2>Patient Data</h2>
+        <p id="patient-subtitle" class="muted"></p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr><th>Parameter</th><th>Value</th></tr>
+            </thead>
+            <tbody id="patient-features"></tbody>
+          </table>
+        </div>
+
+        <div class="actions">
+          <button class="btn" data-route="patients">Go to patient list</button>
+          <button class="btn btn-secondary" data-route="viz-options" data-method="shap" data-instruction="vizIcons">Explain it with SHAP</button>
+          <button class="btn btn-primary" data-route="viz-options" data-method="lime" data-instruction="vizIcons">Explain it with LIME</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visualisation options -->
+    <section class="route" data-name="viz-options">
+      <div class="panel">
+        <h2 id="viz-method-title">Choose a visualisation</h2>
+        <p class="muted">Click a graph icon to view it.</p>
+
+        <div id="viz-grid" class="viz-grid">
+          <!-- Filled by JS based on method -->
+        </div>
+
+        <div class="actions">
+          <button class="btn" data-route="patient">Go to patient data</button>
+          <button class="btn" data-route="patients">Go to patients’ list</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SHAP/LIME graph page -->
+    <section class="route" data-name="graph">
+      <div class="panel">
+        <h2 id="graph-title"></h2>
+
+        <div class="graph-area">
+          <img id="graph-image" alt="Graph placeholder" />
+        </div>
+
+        <div class="actions wrap">
+          <button class="btn btn-secondary" id="btn-feature-details">Features details</button>
+          <button class="btn btn-secondary" id="btn-describe-graph">Describe the graph</button>
+          <button class="btn" id="btn-print">Print the graph</button>
+          <button class="btn" id="btn-other-graphs">Other graphs</button>
+          <button class="btn" data-route="patients">Go to patients’ list</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Instructional toast -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Describe Graph drawer -->
+    <aside id="describe-drawer" class="drawer" aria-hidden="true">
+      <div class="drawer-content">
+        <div class="drawer-header">
+          <h3>How to read this graph</h3>
+          <button class="icon-btn" id="close-drawer" aria-label="Close">✕</button>
+        </div>
+        <div id="describe-body" class="drawer-body">
+          <!-- Filled by JS based on graph type -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- Feature details modal -->
+    <div class="modal" id="features-modal" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="modal-content">
+        <h3>Feature details</h3>
+        <div id="features-list" class="features-list">
+          <!-- Filled by JS for current patient -->
+        </div>
+        <div class="actions">
+          <button class="btn btn-primary" data-close="features">Close</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <div class="foot-inner">
+      <span>© <span id="year"></span> Weight Levels Tool</span>
+      <span class="sep">•</span>
+      <span>SHAP & LIME explanations</span>
+    </div>
+  </footer>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
